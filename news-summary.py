@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import re
 import pandas as pd
 from openai import OpenAI
 from tqdm import tqdm  # tqdm 라이브러리 임포트
@@ -30,6 +31,7 @@ for content in tqdm(new_df['main'], desc="Processing"):
     )
     # 요약된 내용을 리스트에 추가
     summary = response.choices[0].message.content
+    summary = re.sub(r'\s*\n\s*', '\n', summary)  # 여러 줄바꿈을 하나로
     summaries.append(summary)
 
 # 새로운 컬럼 'summary'에 요약된 내용 추가
