@@ -72,6 +72,9 @@ def clean_text(text):
     text = re.sub(r'\.\s*\.', '.', text)
     text = re.sub(r'[ⓒ▲◆▶▷■\[\]=+\#/\?^@*※~!△☞◀━-]', '', text)
 
+    # 11. 한글 양옆의 '.'을 '. '으로 대체
+    text = re.sub(r'(?<=[가-힣])\.(?=[가-힣])', '. ', text)
+    
     # 11. 여러 개의 탭(\t), 줄바꿈(\n), 공백을 하나의 공백으로 대체
     text = re.sub(r'\s+', ' ', text)
     
@@ -90,7 +93,7 @@ df['summary'] = df['cleaned_main'].apply(lambda x: spacy_summarize(x))
 df['summary'] = df['summary'].apply(lambda x: x.replace('. ', '.\n'))
 
 # 요약된 데이터를 저장할 엑셀 파일 경로
-output_file_path = './data/article_df_240821_summary.xlsx'
+output_file_path = './data/article_df_240821_summary_v2.xlsx'
 
 # 엑셀 파일로 저장
 df.to_excel(output_file_path, index=False)
