@@ -1,43 +1,98 @@
-# -*- coding: utf-8 -*-
 import re
 import pandas as pd
-from openai import OpenAI
-from tqdm import tqdm  # tqdm 라이브러리 임포트
+import spacy
+from spacy.lang.en.stop_words import STOP_WORDS
+from string import punctuation
+from heapq import nlargest
 
-# OpenAI 클라이언트 설정
-client = OpenAI(
-    base_url='http://localhost:11434/v1',
-    api_key='ollama',  # required, but unused
-)
+# Spacy 모델을 함수 외부에서 로드
+nlp = spacy.load('en_core_web_sm')
+
+def spacy_summarize(text):
+    doc = nlp(text)
+    word_frequencies = {}
+    for word in doc:
+        if word.text.lower() not in list(STOP_WORDS) and word.text.lower() not in punctuation:
+            word_frequencies[word.text] = word_frequencies.get(word.text, 0) + 1
+    
+    max_frequency = max(word_frequencies.values())
+    word_frequencies = {word: freq / max_frequency for word, freq in word_frequencies.items()}
+    
+    sentence_tokens = [sent for sent in doc.sents]
+    sentence_scores = {}
+    for sent in sentence_tokens:
+        for word in sent:
+            if word.text.lower() in word_frequencies.keys():
+                sentence_scores[sent] = sentence_scores.get(sent, 0) + word_frequencies[word.text.lower()]
+    
+    #select_length = int(len(sentence_tokens) * per)
+    if int(len(sentence_tokens))>=3:
+        select_length=3
+    else:
+        select_length=int(len(sentence_tokens))
+    
+    summary = nlargest(select_length, sentence_scores, key=sentence_scores.get)
+    final_summary = [word.text for word in summary]
+    summary = ' '.join(final_summary)
+    return summary.strip()
+
+def clean_text(text):
+    # 1. 'YYYY.MM.DD' 형태의 날짜 패턴 제거
+    text = re.sub(r'\d{4}\.\d{1,2}\.\d{1,2}', '', text)
+    
+    # 2. '재판매 및 DB 금지' 텍스트 제거
+    text = re.sub(r'재판매 및 DB 금지', '', text)
+    
+    # 3. '@'가 포함된 텍스트 제거
+    text = re.sub(r'\S*@\S*\s?', '', text)
+
+    # 4. '~ 기자' 패턴 제거
+    text = re.sub(r'\S* 기자', '', text)
+
+    # 5. 괄호 안에 '사진', '뉴스', '제공'이 포함된 경우 괄호와 내용 제거
+    text = re.sub(r'\(.*?(사진|제공).*?\)', '', text)  # 소괄호
+    text = re.sub(r'\[.*?(사진|제공).*?\]', '', text)  # 대괄호
+    text = re.sub(r'\{.*?(사진|제공).*?\}', '', text)  # 중괄호
+
+    # 6. '<사진=디즈니>' 와 같은 패턴 제거
+    text = re.sub(r'<.*?>', '', text)
+    
+    # 7. '[이데일리 김윤지 기자]' 와 같이 '[ ]' 형태 제거 및 안에 텍스트 모두 제거
+    text = re.sub(r'\[.*?\]', '', text)
+    
+    # 8. '<AFP연합뉴스>'와 같은 패턴 제거
+    text = re.sub(r'<.*?\>', '', text)
+
+    # 9. '<AFP연합뉴스>'와 같은 패턴 제거
+    text = re.sub(r'【.*?\】', '', text)
+
+    # 10. 특수기호 삭제
+    text = re.sub(r'Q.', 'Q', text)
+    
+    text = re.sub(r'\.\s*\.', '.', text)
+    text = re.sub(r'[ⓒ▲◆▶▷■\[\]=+\#/\?^@*※~!△☞◀━-]', '', text)
+
+    # 11. 여러 개의 탭(\t), 줄바꿈(\n), 공백을 하나의 공백으로 대체
+    text = re.sub(r'\s+', ' ', text)
+    
+    return text.strip()
+
 
 # 엑셀 파일 읽기
-df = pd.read_excel('./data/article_df_240812.xlsx')
+file_path = './data/article_df_240812.xlsx'
+df = pd.read_excel(file_path)
+# 요약된 문장을 저장할 새로운 열 생성
+df['cleaned_main'] = df['main'].apply(clean_text)
+# 최대 100자(DB기준 VAR(225))
+df['summary'] = df['cleaned_main'].apply(lambda x: spacy_summarize(x)) 
 
-# 요약된 내용을 담을 리스트 생성
-summaries = []
-new_df=df.head(20)
-# 'main' 컬럼의 각 문장에 대해 줄바꿈 제거, 800자 내로 자르고 요약 수행
-# tqdm을 사용하여 진행 상황 표시
-for content in tqdm(new_df['main'], desc="Processing"):
-    # 줄바꿈 제거 및 300자 내로 자르기
-    cleaned_content = content.replace('\n', ' ').replace('\r', '').strip()[:800]
+# summary 열을 '.' 기준으로 줄바꿈하여 저장
+df['summary'] = df['summary'].apply(lambda x: x.replace('. ', '.\n'))
 
-    response = client.chat.completions.create(
-        model="gemma",
-        messages=[
-            {"role": "system", "content": "다음 내용을 간략한 3줄 리스트로 요약해라. 줄바꿈은 한번만 해라"},
-            {"role": "user", "content": cleaned_content}
-        ]
-    )
-    # 요약된 내용을 리스트에 추가
-    summary = response.choices[0].message.content
-    summary = re.sub(r'\s*\n\s*', '\n', summary)  # 여러 줄바꿈을 하나로
-    summaries.append(summary)
+# 요약된 데이터를 저장할 엑셀 파일 경로
+output_file_path = './data/article_df_240821_summary.xlsx'
 
-# 새로운 컬럼 'summary'에 요약된 내용 추가
-new_df['summary'] = summaries
+# 엑셀 파일로 저장
+df.to_excel(output_file_path, index=False)
 
-# 결과를 새로운 엑셀 파일로 저장
-new_df.to_excel('./data/article_df_240816_with_summaries.xlsx', index=False)
-
-print("요약이 완료되고 새로운 파일이 저장되었습니다.")
+print(f"요약된 데이터를 {output_file_path}에 저장했습니다.")
