@@ -30,4 +30,17 @@ def crawl_and_write_newspaper(url: str) -> ai_model.APIMODEL.NewsPaper:
     ai_crud.create_newspaper(sql_newspaper)
 
     # 3.
-    return ai_model.APIMODEL.NewsPaper(title=title, link=url)
+    return ai_model.APIMODEL.NewsPaper(
+        title=title, summary=summary, link=url, source=source
+    )
+
+
+def get_newspapers_for_user(user_id: int) -> ai_model.APIMODEL.Newspapers:
+    # 1. User ID로 페이지 리스트 받아오기
+    page = 0
+    page_count = 10
+    newspapers = []
+
+    return ai_model.APIMODEL.Newspapers(
+        page=page, page_count=page_count, newspapers=newspapers
+    )

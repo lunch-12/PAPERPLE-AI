@@ -7,10 +7,13 @@ from datetime import datetime, timezone
 class APIMODEL:
     class NewsPaper(BaseModel):
         title: str
+        summary: str
         link: str
+        img: Optional[str] = None
+        source: str
+        published_at: datetime = datetime.now(timezone.utc)
 
     class Newspapers(BaseModel):
-        USER_ID: int
         page: int
         page_count: int
         newspapers: list["APIMODEL.NewsPaper"]
