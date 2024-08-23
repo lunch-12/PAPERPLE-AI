@@ -6,6 +6,8 @@ from string import punctuation
 from heapq import nlargest
 
 # Spacy 모델을 함수 외부에서 로드
+#python -m spacy download en_core_web_sm
+
 nlp = spacy.load('en_core_web_sm')
 
 def spacy_summarize(text):
@@ -79,10 +81,10 @@ def clean_text(text):
 
 
 # 엑셀 파일 읽기
-file_path = './data/article_df_240812.xlsx'
+file_path = 'data/yahoo_aritcle_translated.xlsx'
 df = pd.read_excel(file_path)
 # 요약된 문장을 저장할 새로운 열 생성
-df['cleaned_main'] = df['main'].apply(clean_text)
+df['cleaned_main'] = df['translated_main'].apply(clean_text)
 # 최대 100자(DB기준 VAR(225))
 df['summary'] = df['cleaned_main'].apply(lambda x: spacy_summarize(x)) 
 
@@ -90,7 +92,7 @@ df['summary'] = df['cleaned_main'].apply(lambda x: spacy_summarize(x))
 df['summary'] = df['summary'].apply(lambda x: x.replace('. ', '.\n'))
 
 # 요약된 데이터를 저장할 엑셀 파일 경로
-output_file_path = './data/article_df_240821_summary.xlsx'
+output_file_path = './data/yahoo_article_240823_summary.xlsx'
 
 # 엑셀 파일로 저장
 df.to_excel(output_file_path, index=False)
