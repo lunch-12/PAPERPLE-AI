@@ -1,10 +1,12 @@
-import requests
+import asyncio
+import aiohttp
 from bs4 import BeautifulSoup
-from tqdm import tqdm
 import pandas as pd
 from concurrent.futures import ThreadPoolExecutor
 import sys
 import os
+import ssl
+from tqdm.asyncio import tqdm as tqdm_asyncio
 
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
 from ai_crud import create_newspapers
@@ -23,22 +25,24 @@ CATEGORY_MAP = {
     105: "IT/과학",
 }
 
+ssl_context = ssl.create_default_context()
+ssl_context.check_hostname = False
+ssl_context.verify_mode = ssl.CERT_NONE
 
-def fetch_html(url):
-    """Helper function to fetch HTML from a URL."""
+async def fetch_html(session, url):
+    """Helper function to fetch HTML from a URL asynchronously."""
     try:
-        response = requests.get(url, headers=HEADERS)
-        response.raise_for_status()
-        return response.text
-    except requests.RequestException as e:
+        async with session.get(url) as response:
+            response.raise_for_status()
+            return await response.text()
+    except aiohttp.ClientError as e:
         print(f"Failed to fetch {url}: {e}")
         return None
 
-
-def ex_tag(sid, page):
-    """Extracts article links from a given sid and page."""
+async def ex_tag(session, sid, page):
+    """Extracts article links from a given sid and page asynchronously."""
     url = f"https://news.naver.com/main/main.naver?mode=LSD&mid=shm&sid1={sid}&date=%2000:00:00&page={page}"
-    html = fetch_html(url)
+    html = await fetch_html(session, url)
     if not html:
         return []
 
@@ -50,20 +54,17 @@ def ex_tag(sid, page):
         and "/comment/" not in a["href"]
     ]
 
-
-def re_tag(sid):
-    """Collects unique article links for a specific sid."""
-    with ThreadPoolExecutor() as executor:
-        futures = [executor.submit(ex_tag, sid, i + 1) for i in range(100)]
-        results = [f.result() for f in tqdm(futures, desc=f"Processing SID {sid}")]
+async def re_tag(session, sid):
+    """Collects unique article links for a specific sid asynchronously."""
+    tasks = [ex_tag(session, sid, i + 1) for i in range(100)]
+    results = await tqdm_asyncio.gather(*tasks, desc=f"Collecting links for SID {sid}")
 
     unique_links = set(link for sublist in results for link in sublist)
     return list(unique_links)
 
-
-def art_crawl(url):
-    """Crawls article details given a URL."""
-    html = fetch_html(url)
+async def art_crawl(session, url):
+    """Crawls article details given a URL asynchronously."""
+    html = await fetch_html(session, url)
     if not html:
         return None
 
@@ -101,29 +102,29 @@ def art_crawl(url):
         "link": url,
     }
 
-
-def main():
+async def main():
     sids = [100, 101, 102, 103, 104, 105]
     all_hrefs = {}
 
-    # Step 1: Collect links
-    for sid in sids:
-        all_hrefs[sid] = re_tag(sid)
+    async with aiohttp.ClientSession(headers=HEADERS, connector=aiohttp.TCPConnector(ssl=ssl_context)) as session:
+        # Step 1: Collect links asynchronously
+        for sid in sids:
+            all_hrefs[sid] = await re_tag(session, sid)
 
-    # Step 2: Crawl article data in parallel
-    artdic_lst = []
-    with ThreadPoolExecutor() as executor:
-        futures = {
-            executor.submit(art_crawl, url): (sid, url)
+        # Step 2: Crawl article data in parallel asynchronously
+        tasks = [
+            art_crawl(session, url)
             for sid, urls in all_hrefs.items()
             for url in urls
-        }
-        for future in tqdm(futures, desc="Crawling articles"):
-            result = future.result()
-            if result:
-                sid, url = futures[future]
-                result["section"] = sid
-                artdic_lst.append(result)
+        ]
+        results = await tqdm_asyncio.gather(*tasks, desc="Crawling articles")
+        
+        artdic_lst = []
+        for sid, urls in all_hrefs.items():
+            for result in results:
+                if result and result["link"] in urls:
+                    result["section"] = sid
+                    artdic_lst.append(result)
 
     # Step 3: Convert to DataFrame
     art_df = pd.DataFrame(artdic_lst)
@@ -145,4 +146,4 @@ def main():
     create_newspapers(newspapers=newspapers)
 
 
-main()
+asyncio.run(main())
