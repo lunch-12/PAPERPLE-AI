@@ -30,3 +30,10 @@ def create_newspaper(newspaper: SQLMODEL.NewsPaper):
     with Session(engine, expire_on_commit=False) as session:
         session.add(newspaper)
         session.commit()
+
+
+def create_newspapers(newspapers: list[SQLMODEL.NewsPaper]):
+    with Session(engine, expire_on_commit=False) as session:
+        for newspaper in newspapers:
+            session.add(newspaper)
+        session.commit()
