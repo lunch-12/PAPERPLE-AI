@@ -39,7 +39,7 @@ print('관련 종목명: ',stock)
 
 #----------------
 #한국거래소에서 종목 코드 파일호출
-code_df=pd.read_excel('data/test_data/국내상장법인.xlsx', dtype={'code': str})
+code_df=pd.read_excel('data/국내상장법인.xlsx', dtype={'code': str})
 # 종목 이름을 소문자 또는 대문자로 비교하여 일치하는 행을 찾음
 stock_code = code_df.loc[(code_df['name'].str.lower() == stock.lower()) | (code_df['name'].str.upper() == stock.upper()), 'code']
 

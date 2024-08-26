@@ -24,7 +24,7 @@ import urllib.request
 # code_df = code_df.rename(columns={'회사명': 'name', '종목코드': 'code'})
 
 # code_df.to_excel('data/test_data/국내상장법인.xlsx', index=False)
-code_df=pd.read_excel('data/test_data/국내상장법인.xlsx', dtype={'code': str})
+code_df=pd.read_excel('data/국내상장법인.xlsx', dtype={'code': str})
 
 # Display the first few rows
 print(code_df.head())

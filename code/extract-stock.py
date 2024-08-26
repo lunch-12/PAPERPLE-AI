@@ -148,7 +148,7 @@ def main():
     new_df = df.tail(20)
 
     # 한국거래소 종목 코드 데이터 읽기
-    code_df = read_excel_file('data/test_data/국내상장법인.xlsx')
+    code_df = read_excel_file('data/국내상장법인.xlsx')
 
     results = []
 
@@ -160,7 +160,7 @@ def main():
         process_stock_info(stock, code_df, results, row)
 
     # 결과를 새로운 엑셀 파일로 저장
-    save_results_to_excel(results, 'data/test_data/관련주식정보.xlsx')
+    save_results_to_excel(results, 'data/관련주식정보.xlsx')
 
 if __name__ == "__main__":
     main()
