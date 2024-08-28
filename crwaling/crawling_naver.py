@@ -2,15 +2,16 @@ import asyncio
 import aiohttp
 from bs4 import BeautifulSoup
 import pandas as pd
-from concurrent.futures import ThreadPoolExecutor
 import sys
 import os
 import ssl
 from tqdm.asyncio import tqdm as tqdm_asyncio
 
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
-from ai_crud import create_newspapers
+from ai_crud import upsert_newspapers
 from ai_model import SQLMODEL
+from util.hash_utils import get_sha256_hash
+from util.datetime_util import convert_NAVER_date_to_datetime
 
 # Constants
 HEADERS = {
@@ -29,6 +30,7 @@ ssl_context = ssl.create_default_context()
 ssl_context.check_hostname = False
 ssl_context.verify_mode = ssl.CERT_NONE
 
+
 async def fetch_html(session, url):
     """Helper function to fetch HTML from a URL asynchronously."""
     try:
@@ -38,6 +40,7 @@ async def fetch_html(session, url):
     except aiohttp.ClientError as e:
         print(f"Failed to fetch {url}: {e}")
         return None
+
 
 async def ex_tag(session, sid, page):
     """Extracts article links from a given sid and page asynchronously."""
@@ -54,6 +57,7 @@ async def ex_tag(session, sid, page):
         and "/comment/" not in a["href"]
     ]
 
+
 async def re_tag(session, sid):
     """Collects unique article links for a specific sid asynchronously."""
     tasks = [ex_tag(session, sid, i + 1) for i in range(100)]
@@ -61,6 +65,7 @@ async def re_tag(session, sid):
 
     unique_links = set(link for sublist in results for link in sublist)
     return list(unique_links)
+
 
 async def art_crawl(session, url):
     """Crawls article details given a URL asynchronously."""
@@ -102,23 +107,24 @@ async def art_crawl(session, url):
         "link": url,
     }
 
+
 async def main():
     sids = [100, 101, 102, 103, 104, 105]
     all_hrefs = {}
 
-    async with aiohttp.ClientSession(headers=HEADERS, connector=aiohttp.TCPConnector(ssl=ssl_context)) as session:
+    async with aiohttp.ClientSession(
+        headers=HEADERS, connector=aiohttp.TCPConnector(ssl=ssl_context)
+    ) as session:
         # Step 1: Collect links asynchronously
         for sid in sids:
             all_hrefs[sid] = await re_tag(session, sid)
 
         # Step 2: Crawl article data in parallel asynchronously
         tasks = [
-            art_crawl(session, url)
-            for sid, urls in all_hrefs.items()
-            for url in urls
+            art_crawl(session, url) for sid, urls in all_hrefs.items() for url in urls
         ]
         results = await tqdm_asyncio.gather(*tasks, desc="Crawling articles")
-        
+
         artdic_lst = []
         for sid, urls in all_hrefs.items():
             for result in results:
@@ -137,13 +143,15 @@ async def main():
             body=row["main"],
             summary="TEMP SUMMARY",
             link=row["link"],
+            link_hash=get_sha256_hash(row["link"]),
             image=row["image"],
             source=row["source"],
-            published_at=row["published_at"],
+            published_at=convert_NAVER_date_to_datetime(row["published_at"]),
         )
         for _, row in art_df.iterrows()
     ]
-    create_newspapers(newspapers=newspapers)
+
+    upsert_newspapers(newspapers=newspapers)
 
 
 asyncio.run(main())

@@ -1,5 +1,6 @@
 import ai_model
 import ai_crud
+import util.hash_utils
 
 
 def crawl_and_write_newspaper(url: str) -> ai_model.APIMODEL.NewsPaper:
@@ -17,6 +18,7 @@ def crawl_and_write_newspaper(url: str) -> ai_model.APIMODEL.NewsPaper:
     body = "CREATE TEMP BODY"
     summary = "CREATE TEMP SUMMARY"
     source = "CREATE TEMP SOURCE"
+    link_hash = util.hash_utils.get_sha256_hash(url)
 
     # 2.
     sql_newspaper = ai_model.SQLMODEL.NewsPaper(
@@ -24,10 +26,10 @@ def crawl_and_write_newspaper(url: str) -> ai_model.APIMODEL.NewsPaper:
         body=body + url,
         summary=summary + url,
         link=url,
+        link_hash=link_hash,
         source=source,
     )
-
-    ai_crud.create_newspaper(sql_newspaper)
+    ai_crud.upsert_newspapers([sql_newspaper])
 
     # 3.
     return ai_model.APIMODEL.NewsPaper(

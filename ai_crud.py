@@ -1,5 +1,6 @@
 import yaml
 from sqlmodel import create_engine, SQLModel, Session
+from sqlalchemy.dialects.mysql import insert
 from ai_model import SQLMODEL
 
 db_config: dict[str:str] = None
@@ -26,14 +27,14 @@ engine = create_engine("".join(URL_components))
 SQLModel.metadata.create_all(engine)
 
 
-def create_newspaper(newspaper: SQLMODEL.NewsPaper):
+def upsert_newspapers(newspapers: list[SQLMODEL.NewsPaper]):
     with Session(engine, expire_on_commit=False) as session:
-        session.add(newspaper)
-        session.commit()
-
-
-def create_newspapers(newspapers: list[SQLMODEL.NewsPaper]):
-    with Session(engine, expire_on_commit=False) as session:
-        for newspaper in newspapers:
-            session.add(newspaper)
-        session.commit()
+        try:
+            for newspaper in newspapers:
+                stmt = insert(SQLMODEL.NewsPaper).values(newspaper.model_dump())
+                stmt = stmt.on_duplicate_key_update(link_hash=stmt.inserted.link_hash)
+                session.exec(stmt)
+            session.commit()
+        except Exception as e:
+            session.rollback()
+            raise e

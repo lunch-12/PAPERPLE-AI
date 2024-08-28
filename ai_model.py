@@ -27,6 +27,7 @@ class SQLMODEL:
         body: str = Field(sa_column=Text())
         summary: str = Field(max_length=1000)
         link: str = Field(max_length=2048)
+        link_hash: str = Field(max_length=255, sa_column_kwargs={"unique": True})
         image: Optional[str] = Field(default=None, max_length=2048)
         source: str = Field(max_length=255)
         created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
