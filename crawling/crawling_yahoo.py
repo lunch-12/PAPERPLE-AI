@@ -121,17 +121,21 @@ def scrape_articles(browser) -> list[SQLMODEL.NewsPaper]:
     return data
 
 
-def main():
+def run():
+    print("[크롤링-YAHOO]시작")
     browser = setup_browser()
     browser.get("https://finance.yahoo.com/topic/stock-market-news/")
     scroll_page(browser)
     newspapers = scrape_articles(browser)
+    print("NEWSPAPER COUNT:", len(newspapers))
+    
+    if newspapers:
+        print("SAMPLE NEWSPAPER:", newspapers[0])
+                
     try:
         upsert_newspapers(newspapers)
     except Exception as e:
         print("ERROR OCCURRED:", e)
 
     browser.quit()
-
-
-main()
+    print("[크롤링-YAHOO]종료")

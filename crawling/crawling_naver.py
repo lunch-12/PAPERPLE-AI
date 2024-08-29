@@ -154,4 +154,7 @@ async def main():
     upsert_newspapers(newspapers=newspapers)
 
 
-asyncio.run(main())
+def run():
+    print("[크롤링-NAVER]시작")
+    asyncio.run(main())
+    print("[크롤링-NAVER]종료")
