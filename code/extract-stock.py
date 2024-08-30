@@ -1,9 +1,10 @@
 import re
 import pandas as pd
 from openai import OpenAI
-import requests
 import json
 import urllib.request
+from kakaotrans import Translator
+
 
 # OpenAI 클라이언트 설정
 def setup_openai_client():
@@ -105,7 +106,9 @@ def process_stock_info(stock, code_df, results, row):
                 fetch_and_append_stock_info(stock_code, row, results)
                 return
 
-            # 5. 영어 알파벳이 포함된 경우 한글로 변환 후 다시 시도
+            stock = re.sub(r'\(.*?\)', '', stock).strip()
+            
+            # 5. 영어 알파벳이 포함된 경우 한글로 변환 후 다시 시도(nc소프트-->엔씨소프트)
             stock_translated = simple_filter(stock)
             if stock_translated != stock:  # 변환된 텍스트가 있을 경우
                 stock_code = get_stock_code(stock_translated, code_df)
@@ -113,7 +116,7 @@ def process_stock_info(stock, code_df, results, row):
                     fetch_and_append_stock_info(stock_code, row, results)
                     return
                 
-            # 6. 영어 고유명을 한글로 변환(MEDITEX->메디톡스)
+            # 6. 영어 고유명을 한글로 변환(ncsoft-->엔씨소프트)
             stock_translated_2 = convert_english_name_to_korean(stock)
             if stock_translated_2 != stock:  # 변환된 텍스트가 있을 경우
                 stock_code = get_stock_code(stock_translated_2, code_df)
@@ -178,15 +181,16 @@ def simple_filter(input_text):
     return ''.join(result_trans)
 
 
+# NCsoft->엔씨소프트
 # 영어 고유명을 한글로 변환
 def convert_english_name_to_korean(name):
-    # 미리 정의된 영어 고유명 -> 한글 변환 매핑
-    name = name.replace(" ", "").upper()
+    
+    name=name.replace(" ",'').upper()
     name_mapping = {
         "NCSOFT": "엔씨소프트",
-        "SAMSUNG": "삼성",
-        "MEDITEX": "메디톡스",
-        "LG": "엘지",
+        "SAMSUNG": "삼성전자",
+        "삼성": "삼성전자",
+        "LS전선": "LS",
         "NETMARBLE": "넷마블",
         # 필요에 따라 더 추가
     }
@@ -194,8 +198,13 @@ def convert_english_name_to_korean(name):
     # 매핑된 이름이 있으면 반환, 없으면 음역 적용
     if name in name_mapping:
         return name_mapping[name]
-    else:
-        return simple_filter(name)
+    
+    translator = Translator()
+    
+    stock_korean_translated=translator.translate(name, src='en', tgt='kr')
+
+    # stock_korean_translated이 여전히 영어만 아래있는 것들 중 매칭
+    return stock_korean_translated
     
     
 # 메인 함수
@@ -213,7 +222,7 @@ def main():
 
     # 각 뉴스 기사에 대해 관련 종목 정보 가져오기
     for index, row in new_df.iterrows():
-        stock = get_related_stock(client, row['main'])
+        stock = get_related_stock(client, row['title']+'.'+row['main'])
         print('관련 종목명: ', stock)
 
         process_stock_info(stock, code_df, results, row)
