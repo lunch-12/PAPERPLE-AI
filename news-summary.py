@@ -6,7 +6,7 @@ from string import punctuation
 from heapq import nlargest
 
 # Spacy 모델을 함수 외부에서 로드
-nlp = spacy.load('en_core_web_sm')
+nlp = spacy.load('ko_core_news_md')
 
 def spacy_summarize(text):
     doc = nlp(text)
@@ -25,16 +25,25 @@ def spacy_summarize(text):
             if word.text.lower() in word_frequencies.keys():
                 sentence_scores[sent] = sentence_scores.get(sent, 0) + word_frequencies[word.text.lower()]
     
-    #select_length = int(len(sentence_tokens) * per)
-    if int(len(sentence_tokens))>=3:
-        select_length=3
+    # 기본 select_length 설정
+    if int(len(sentence_tokens)) >= 3:
+        select_length = 3
     else:
-        select_length=int(len(sentence_tokens))
+        select_length = int(len(sentence_tokens))
     
     summary = nlargest(select_length, sentence_scores, key=sentence_scores.get)
     final_summary = [word.text for word in summary]
     summary = ' '.join(final_summary)
+    
+    # 요약본 길이 확인
+    if len(summary) > 250:
+        select_length = 2
+        summary = nlargest(select_length, sentence_scores, key=sentence_scores.get)
+        final_summary = [word.text for word in summary]
+        summary = ' '.join(final_summary)
+    
     return summary.strip()
+
 
 def clean_text(text):
     # 1. 'YYYY.MM.DD' 형태의 날짜 패턴 제거
@@ -93,7 +102,7 @@ df['summary'] = df['cleaned_main'].apply(lambda x: spacy_summarize(x))
 df['summary'] = df['summary'].apply(lambda x: x.replace('. ', '.\n'))
 
 # 요약된 데이터를 저장할 엑셀 파일 경로
-output_file_path = './data/article_df_240821_summary_v2.xlsx'
+output_file_path = './data/article_df_240830_summary.xlsx'
 
 # 엑셀 파일로 저장
 df.to_excel(output_file_path, index=False)
