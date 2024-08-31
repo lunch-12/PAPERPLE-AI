@@ -58,7 +58,7 @@ def fetch_korean_stock_info(stock_code):
             last_price_change = json_data['dealTrendInfos'][0].get('compareToPreviousClosePrice', 'N/A')
             return stock_name, current_price, last_price_change
         except Exception as e:
-            print(f"{stock_code}에 해당하는 해외종목코드를 찾을 수 없습니다.")
+            print(f"{stock_code}에 해당하는 국내종목코드를 찾을 수 없습니다.")
             #print(f"Error fetching data for stock code {stock_code}: {e}")
     return 'N/A', 'N/A', 'N/A'
 
@@ -89,7 +89,8 @@ def fetch_foreign_stock_info(stock_code):
             return stock_name, current_price, last_price_change
         except Exception as e:
             # 오류 발생 시 다음 index_code 시도
-            print(f"Error fetching data for {index_code}: {e}")
+            print(f"{stock_code}에 해당하는 해외종목코드를 찾을 수 없습니다.")
+            #print(f"Error fetching data for {index_code}: {e}")
     
     # 모든 시도가 실패한 경우
     return 'N/A', 'N/A', 'N/A'
@@ -290,7 +291,7 @@ def main():
     
     # 뉴스 기사 데이터 읽기
     df = read_excel_file('./data/article_df_240812.xlsx')
-    new_df = df.tail(50)
+    new_df = df.tail(100)
 
     # 한국거래소 종목 코드 데이터 읽기
     code_df = read_excel_file('data/국내상장법인.xlsx')
