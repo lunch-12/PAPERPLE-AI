@@ -4,10 +4,7 @@ from openai import OpenAI
 import json
 import urllib.request
 from kakaotrans import Translator
-# todo
-# NVDIDA -> 종목코드 NVDA
-# 가상코인
-# 미국을 제외한 다른국가 종목
+
 
 # OpenAI 클라이언트 설정
 def setup_openai_client():
@@ -58,7 +55,7 @@ def fetch_korean_stock_info(stock_code):
             last_price_change = json_data['dealTrendInfos'][0].get('compareToPreviousClosePrice', 'N/A')
             return stock_name, current_price, last_price_change
         except Exception as e:
-            print(f"{stock_code}에 해당하는 해외종목코드를 찾을 수 없습니다.")
+            print(f"{stock_code}에 해당하는 국내종목코드를 찾을 수 없습니다.")
             #print(f"Error fetching data for stock code {stock_code}: {e}")
     return 'N/A', 'N/A', 'N/A'
 
@@ -68,12 +65,13 @@ def fetch_foreign_stock_info(stock_code):
     stock_code=stock_code.upper()
     # 시도할 세 가지 index_code 옵션
     index_codes = [
-        stock_code + ".O",  # 예: NASDAQ
-        stock_code + ".K",   # 예: 뉴욕거래증권소
-        stock_code
+        f"{stock_code}.O",  # 예: NASDAQ (예: AAPL.O)
+        f"{stock_code}.K",  # 예: 뉴욕거래소 (예: AAPL.K)
+        stock_code,         # 기본 종목 코드 (예: AAPL)
+        f".{stock_code}",   # 그 외 (예: .AAPL)
+        f"{stock_code}.HM"  # 베트남 (예: AAPL.HM)
     ]
-    
-    # 각 index_code에 대해 URL 시도
+
     for index_code in index_codes:
         url = f"{base_url}{index_code}/basic"
         try:
@@ -88,8 +86,8 @@ def fetch_foreign_stock_info(stock_code):
             # 유효한 응답을 받으면 반환
             return stock_name, current_price, last_price_change
         except Exception as e:
-            # 오류 발생 시 다음 index_code 시도
-            print(f"Error fetching data for {index_code}: {e}")
+            print(f"{index_code}에 해당하는 해외종목코드를 찾을 수 없습니다.")
+            #print(f"Error fetching data for {index_code}: {e}")
     
     # 모든 시도가 실패한 경우
     return 'N/A', 'N/A', 'N/A'
@@ -134,14 +132,14 @@ def process_stock_info(stock, code_df, results, row):
                 fetch_and_append_stock_info(stock_code, row, results)
                 return
 
-            # 2. '네이버(035420)'와 같이 종목명에 괄호로 종목 코드가 포함된 경우
+            # 3. '네이버(035420)'와 같이 종목명에 괄호로 종목 코드가 포함된 경우
             match = re.search(r'\((\d{6})\)', stock)
             if match:
                 stock_code = match.group(1)
                 fetch_and_append_stock_info(stock_code, row, results)
                 return
             
-            # 3. 'SS0IAQ (삼성전자)'와 같이 괄호로 종목명이 포함된 경우
+            # 4. 'SS0IAQ (삼성전자)'와 같이 괄호로 종목명이 포함된 경우
             match = re.search(r'\((.*?)\)', stock)
             if match:
                 stock_name = match.group(1)  # 괄호 안의 종목명 추출
@@ -150,7 +148,7 @@ def process_stock_info(stock, code_df, results, row):
                     fetch_and_append_stock_info(stock_code, row, results)
                     return
             
-            # 4. '네이버(주)'와 같이 괄호 포함 텍스트를 제거한 후 다시 시도
+            # 5. '네이버(주)'와 같이 괄호 포함 텍스트를 제거한 후 다시 시도
             stock_name_cleaned = re.sub(r'\(.*?\)', '', stock).strip()
             stock_code = get_stock_code(stock_name_cleaned, code_df)
             if stock_code:
@@ -159,7 +157,7 @@ def process_stock_info(stock, code_df, results, row):
 
             stock = re.sub(r'\(.*?\)', '', stock).strip()
 
-            # 5. 영어 알파벳이 포함된 경우 한글로 변환 후 다시 시도(nc소프트-->엔씨소프트)
+            # 6. 영어 알파벳이 포함된 경우 한글로 변환 후 다시 시도(nc소프트-->엔씨소프트)
             stock_translated = simple_filter(stock)
             if stock_translated != stock:  # 변환된 텍스트가 있을 경우
                 stock_code = get_stock_code(stock_translated, code_df)
@@ -167,7 +165,7 @@ def process_stock_info(stock, code_df, results, row):
                     fetch_and_append_stock_info(stock_code, row, results)
                     return
 
-            # 6. 영어 고유명을 한글로 변환(ncsoft-->엔씨소프트)
+            # 7. 영어 고유명을 한글로 변환(ncsoft-->엔씨소프트)
             stock_translated_2 = convert_english_name_to_korean(stock)
             if stock_translated_2 != stock:  # 변환된 텍스트가 있을 경우
                 stock_code = get_stock_code(stock_translated_2, code_df)
@@ -175,22 +173,22 @@ def process_stock_info(stock, code_df, results, row):
                     fetch_and_append_stock_info(stock_code, row, results)
                     return
                 
-            # 7. 한글 영어로 변환(네이버-->NAVER)
+            # 8. 한글 영어로 변환(네이버-->NAVER)
             stock_translated_3 = convert_korean_name_to_english(stock)
             if stock_translated_3 != stock:  # 변환된 텍스트가 있을 경우
-                stock_code = get_stock_code(stock_translated_2, code_df)
+                stock_code = get_stock_code(stock_translated_3, code_df)
                 if stock_code:
                     fetch_and_append_stock_info(stock_code, row, results)
                     return
-                
 
-            # 8. 외국 종목으로 간주하고 외국 종목 정보 가져오기(stock이 영어로 구성되어있을 경우)
+            # 9. 외국 종목 또는 가상자산으로 간주하고 외국 종목 정보 가져오기(stock이 영어로 구성되어있을 경우)
             if re.match(r'^[A-Za-z\s]+$', stock):  # stock이 영어로만 구성된 경우
                 is_foreign = True
-                stock_code = stock  # 외국 종목의 경우 이미 코드가 stock에 들어있다고 가정
+                stock_code = stock
                 fetch_and_append_stock_info(stock_code, row, results, is_foreign=True)
                 return
 
+            
         # 종목 코드를 찾았을 경우 정보 가져오기
         if stock_code:
             fetch_and_append_stock_info(stock_code, row, results, is_foreign)
@@ -202,7 +200,7 @@ def process_stock_info(stock, code_df, results, row):
                 '현재 가격': 'N/A',
                 '전일대비 등락가격': 'N/A'
             })
-            print(f"{stock}에 해당하는 국내종목코드를 찾을 수 없습니다.")
+            print(f"{stock}에 해당하는 종목코드를 찾을 수 없습니다.")
     else:
         print(f"해당 기사에서 관련종목을 못 찾았습니다.")
         results.append({
@@ -258,6 +256,7 @@ def convert_english_name_to_korean(name):
         "삼성": "삼성전자",
         "LS전선": "LS",
         "NETMARBLE": "넷마블",
+        "네트마블": "넷마블",
         # 필요에 따라 더 추가
     }
     

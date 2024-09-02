@@ -7,7 +7,8 @@ from kakaotrans import Translator
 # todo
 # NVDIDA -> 종목코드 NVDA
 # 가상코인
-# 미국을 제외한 다른국가 종목
+# 미국을 제외한 다른 국가 주식종목
+# 奔驰>>벤츠 //네이버주식에 없음--> 종목명만 한글(영어)로 표시할지?
 
 # OpenAI 클라이언트 설정
 def setup_openai_client():
