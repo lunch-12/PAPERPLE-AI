@@ -4,11 +4,12 @@ from openai import OpenAI
 import json
 import urllib.request
 from kakaotrans import Translator
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
 # todo
-# NVDIDA -> 종목코드 NVDA
-# 가상코인
-# 미국을 제외한 다른 국가 주식종목
-# 奔驰>>벤츠 //네이버주식에 없음--> 종목명만 한글(영어)로 표시할지?
+# investing.com에 조회
+# 영어로 번역후 다시 조회
+
 
 # OpenAI 클라이언트 설정
 def setup_openai_client():
@@ -60,21 +61,20 @@ def fetch_korean_stock_info(stock_code):
             return stock_name, current_price, last_price_change
         except Exception as e:
             print(f"{stock_code}에 해당하는 국내종목코드를 찾을 수 없습니다.")
-            #print(f"Error fetching data for stock code {stock_code}: {e}")
     return 'N/A', 'N/A', 'N/A'
 
-# 외국 종목 정보 가져오기
-def fetch_foreign_stock_info(stock_code):
-    base_url = "https://api.stock.naver.com/stock/"
+# 외국 종목 및 가상자산 정보 가져오기
+def fetch_foreign_or_crypto_stock_info(stock_code):
     stock_code=stock_code.upper()
-    # 시도할 세 가지 index_code 옵션
+    base_url = "https://api.stock.naver.com/stock/"
     index_codes = [
-        stock_code + ".O",  # 예: NASDAQ
-        stock_code + ".K",   # 예: 뉴욕거래증권소
-        stock_code
+        f"{stock_code}.O",  # 예: NASDAQ (예: AAPL.O)
+        f"{stock_code}.K",  # 예: 뉴욕거래소 (예: AAPL.K)
+        stock_code,         # 기본 종목 코드 (예: AAPL)
+        f".{stock_code}",   # 그 외 (예: .AAPL)
+        f"{stock_code}.HM"  # 베트남 (예: AAPL.HM)
     ]
-    
-    # 각 index_code에 대해 URL 시도
+
     for index_code in index_codes:
         url = f"{base_url}{index_code}/basic"
         try:
@@ -89,18 +89,29 @@ def fetch_foreign_stock_info(stock_code):
             # 유효한 응답을 받으면 반환
             return stock_name, current_price, last_price_change
         except Exception as e:
-            # 오류 발생 시 다음 index_code 시도
-            print(f"{stock_code}에 해당하는 해외종목코드를 찾을 수 없습니다.")
-            #print(f"Error fetching data for {index_code}: {e}")
+            print(f"{index_code}에 해당하는 해외종목코드를 찾을 수 없습니다.")
     
-    # 모든 시도가 실패한 경우
+    url = f'https://m.stock.naver.com/front-api/crypto/otherExchange?nfTicker={stock_code}&excludeExchange=UPBIT'
+    try:
+        raw_data = urllib.request.urlopen(url).read()
+        json_data = json.loads(raw_data)
+        if json_data['isSuccess']:
+            item = json_data['result'][0]
+            stock_name = item['krName']
+            trade_price = item['tradePrice']
+            change_value = item['changeValue']
+            return stock_name, trade_price, change_value
+        else:
+            print(f"{stock_code}에 해당하는 가상자산 데이터를 가져오는 데 실패했습니다.")
+    except Exception as e:
+        print(f"{stock_code}에 해당하는 가상자산을 찾을 수 없습니다.")
+    
     return 'N/A', 'N/A', 'N/A'
-
 
 # 정보 저장
 def fetch_and_append_stock_info(stock_code, row, results, is_foreign=False):
     if is_foreign:
-        stock_name, current_price, last_price_change = fetch_foreign_stock_info(stock_code)
+        stock_name, current_price, last_price_change = fetch_foreign_or_crypto_stock_info(stock_code)
     else:
         stock_name, current_price, last_price_change = fetch_korean_stock_info(stock_code)
 
@@ -163,7 +174,7 @@ def process_stock_info(stock, code_df, results, row):
 
             # 5. 영어 알파벳이 포함된 경우 한글로 변환 후 다시 시도(nc소프트-->엔씨소프트)
             stock_translated = simple_filter(stock)
-            if stock_translated != stock:  # 변환된 텍스트가 있을 경우
+            if stock_translated != stock:
                 stock_code = get_stock_code(stock_translated, code_df)
                 if stock_code:
                     fetch_and_append_stock_info(stock_code, row, results)
@@ -171,7 +182,7 @@ def process_stock_info(stock, code_df, results, row):
 
             # 6. 영어 고유명을 한글로 변환(ncsoft-->엔씨소프트)
             stock_translated_2 = convert_english_name_to_korean(stock)
-            if stock_translated_2 != stock:  # 변환된 텍스트가 있을 경우
+            if stock_translated_2 != stock:
                 stock_code = get_stock_code(stock_translated_2, code_df)
                 if stock_code:
                     fetch_and_append_stock_info(stock_code, row, results)
@@ -179,20 +190,20 @@ def process_stock_info(stock, code_df, results, row):
                 
             # 7. 한글 영어로 변환(네이버-->NAVER)
             stock_translated_3 = convert_korean_name_to_english(stock)
-            if stock_translated_3 != stock:  # 변환된 텍스트가 있을 경우
-                stock_code = get_stock_code(stock_translated_2, code_df)
+            if stock_translated_3 != stock:
+                stock_code = get_stock_code(stock_translated_3, code_df)
                 if stock_code:
                     fetch_and_append_stock_info(stock_code, row, results)
                     return
-                
 
-            # 8. 외국 종목으로 간주하고 외국 종목 정보 가져오기(stock이 영어로 구성되어있을 경우)
+            # 9. 외국 종목 또는 가상자산으로 간주하고 외국 종목 정보 가져오기(stock이 영어로 구성되어있을 경우)
             if re.match(r'^[A-Za-z\s]+$', stock):  # stock이 영어로만 구성된 경우
                 is_foreign = True
-                stock_code = stock  # 외국 종목의 경우 이미 코드가 stock에 들어있다고 가정
+                stock_code = stock
                 fetch_and_append_stock_info(stock_code, row, results, is_foreign=True)
                 return
 
+            
         # 종목 코드를 찾았을 경우 정보 가져오기
         if stock_code:
             fetch_and_append_stock_info(stock_code, row, results, is_foreign)
@@ -204,7 +215,7 @@ def process_stock_info(stock, code_df, results, row):
                 '현재 가격': 'N/A',
                 '전일대비 등락가격': 'N/A'
             })
-            print(f"{stock}에 해당하는 국내종목코드를 찾을 수 없습니다.")
+            print(f"{stock}에 해당하는 종목코드를 찾을 수 없습니다.")
     else:
         print(f"해당 기사에서 관련종목을 못 찾았습니다.")
         results.append({
@@ -214,6 +225,7 @@ def process_stock_info(stock, code_df, results, row):
             '현재 가격': 'N/A',
             '전일대비 등락가격': 'N/A'
         })
+
 
 # 결과 저장
 def save_results_to_excel(results, output_file):
@@ -260,6 +272,7 @@ def convert_english_name_to_korean(name):
         "삼성": "삼성전자",
         "LS전선": "LS",
         "NETMARBLE": "넷마블",
+        "네트마블": "넷마블",
         # 필요에 따라 더 추가
     }
     
@@ -293,7 +306,7 @@ def main():
     # 뉴스 기사 데이터 읽기
     df = read_excel_file('./data/article_df_240812.xlsx')
     new_df = df.tail(100)
-
+    
     # 한국거래소 종목 코드 데이터 읽기
     code_df = read_excel_file('data/국내상장법인.xlsx')
 
@@ -307,7 +320,7 @@ def main():
         process_stock_info(stock, code_df, results, row)
 
     # 결과를 새로운 엑셀 파일로 저장
-    save_results_to_excel(results, 'data/해외주식포함_관련주식정보_top100.xlsx')
+    save_results_to_excel(results, 'data/가상자산_및_해외주식_포함_관련주식정보_top100.xlsx')
 
 if __name__ == "__main__":
     main()
