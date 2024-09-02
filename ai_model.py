@@ -9,9 +9,9 @@ class APIMODEL:
         title: str
         summary: str
         link: str
-        img: Optional[str] = None
+        image: Optional[str] = None
         source: str
-        published_at: datetime = datetime.now(timezone.utc)
+        published_at: str
 
     class Newspapers(BaseModel):
         page: int
