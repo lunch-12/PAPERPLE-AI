@@ -1,6 +1,16 @@
 from datetime import datetime, timezone, timedelta
 
 
+def convert_str_to_datetime(date_str) -> datetime:
+    seoul_timezone = timezone(timedelta(hours=9))
+    seoul_time = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S").replace(
+        tzinfo=seoul_timezone
+    )
+    utc_time = seoul_time.astimezone(timezone.utc)
+
+    return utc_time
+
+
 def convert_NAVER_date_to_datetime(date_str: str) -> datetime:
     if "오전" in date_str:
         date_str = date_str.replace("오전", "AM")
@@ -27,3 +37,11 @@ def convert_Yahoo_date_to_datetime(date_str: str) -> datetime:
     # print("FINAL PARSED DATE:", parsed_date)
 
     return parsed_date
+
+
+# def test():
+#     test1 = convert_str_to_datetime("2024-09-02 18:08:13")
+#     print(type(test1.isoformat()), test1.isoformat())
+
+
+# test()
