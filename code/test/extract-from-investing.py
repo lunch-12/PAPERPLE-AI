@@ -5,64 +5,35 @@ item_code ="XRP"
 # url = f'https://www.investing.com/search/?q={item_code}'
 
 #쿼리검색 > 최상단 주식링크로 연결
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.common.by import By
-from selenium.webdriver.chrome.options import Options
-from webdriver_manager.chrome import ChromeDriverManager
+import requests
+from bs4 import BeautifulSoup
 
-import os
-import sys
-
-sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
-
-# Chrome 드라이버 설정
-def setup_browser():
-    chrome_options = Options()
-    chrome_options.add_experimental_option("detach", True)
-    chrome_options.add_experimental_option("excludeSwitches", ["enable-logging"])
-    chrome_options.add_argument("--headless")
-    chrome_options.add_argument("--ignore-ssl-errors=yes")
-    chrome_options.add_argument("--ignore-certificate-errors")
-    chrome_options.add_argument("--disable-dev-shm-usage")
-    chrome_options.add_argument("--no-sandbox")
-    chrome_options.add_argument("--log-level=3")
-    chrome_options.add_argument("--disable-gpu")
-    chrome_options.add_argument("--incognito")
-
-    # Add Image Loading inactive Flag to reduce loading time
-    chrome_options.add_argument("--disable-images")
-    chrome_options.add_experimental_option(
-        "prefs", {"profile.managed_default_content_settings.images": 2}
-    )
-    chrome_options.add_argument("--blink-settings=imagesEnabled=false")
-    service = Service(executable_path=ChromeDriverManager().install())
-    return webdriver.Chrome(service=service, options=chrome_options)
-
-
-chrome_options = Options()
-chrome_options.add_argument("--headless")  # 브라우저 창을 열지 않음
-service = Service(executable_path='path_to_chromedriver')  # chromedriver의 경로를 설정
-
-# 웹 드라이버 시작
-driver = setup_browser()
-
-# 첫 번째 단계: 검색 URL로 이동
+# 첫 번째 단계: 첫 번째 href 속성 가져오기
 search_url = 'https://www.investing.com/search/?q=coupang'
-driver.get(search_url)
+response = requests.get(search_url)
+soup = BeautifulSoup(response.content, 'html.parser')
 
-# 첫 번째 href 속성 가져오기 (동적 요소가 아닌 경우)
-first_a_tag = driver.find_element(By.CLASS_NAME, 'js-inner-all-results-quote-item.row')
-href = first_a_tag.get_attribute('href')
+# 클래스명이 'js-inner-all-results-quotes-wrapper newResultsContainer quatesTable'인 div 내부의 첫 번째 a 태그 찾기
+wrapper = soup.find('div', class_='js-inner-all-results-quotes-wrapper newResultsContainer quatesTable')
+first_a_tag = wrapper.find('a', class_='js-inner-all-results-quote-item row') if wrapper else None
 
-print(href)
-# 두 번째 단계: href 링크로 이동
-driver.get(href)
+# 두 번째 단계: 첫 번째 href 링크로 이동하여 필요한 텍스트 추출
+if first_a_tag:
+    href = first_a_tag['href']
+    full_url = 'https://www.investing.com' + href
+    print(full_url)
+    detail_response = requests.get(full_url)
+    detail_soup = BeautifulSoup(detail_response.content, 'html.parser')
 
-# 필요한 동적 요소를 기다린 후 가져오기
-driver.implicitly_wait(10)  # 최대 10초 동안 요소가 나타나기를 기다림
+    # 종목 텍스트 가져오기
+    target_tag = detail_soup.find('h1', class_='mb-2.5 text-left text-xl font-bold leading-7 text-[#232526] md:mb-2 md:text-3xl md:leading-8 rtl:soft-ltr')
 
-# 첫 번째 h1 태그의 텍스트 가져오기
-first_target_tag = driver.find_element(By.CLASS_NAME, 'mb-2.5.text-left.text-xl.font-bold.leading-7.text-[#232526].md:mb-2.md:text-3xl.md:leading-8.rtl:soft-ltr')
-print("첫 번째 요소의 텍스트:")
-print(first_target_tag.text)
+    if target_tag:
+        print(target_tag.get_text())
+    else:
+        print("지정된 클래스명을 가진 태그를 찾을 수 없습니다.")
+else:
+    print("첫 번째 href 링크를 찾을 수 없습니다.")
+
+    
+    
