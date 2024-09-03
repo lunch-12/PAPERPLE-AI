@@ -1,9 +1,9 @@
 from datetime import datetime, timezone, timedelta
 
 
-def convert_str_to_datetime(date_str) -> datetime:
+def convert_str_to_datetime(date_str: str, date_format: str) -> datetime:
     seoul_timezone = timezone(timedelta(hours=9))
-    seoul_time = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S").replace(
+    seoul_time = datetime.strptime(date_str, date_format).replace(
         tzinfo=seoul_timezone
     )
     utc_time = seoul_time.astimezone(timezone.utc)

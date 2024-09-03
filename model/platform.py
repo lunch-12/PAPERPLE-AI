@@ -10,6 +10,17 @@ class Platform:
     __supported_domains_and_crawling_methods = {
         "n.news.naver.com": crawling_news.get_news_info_from_NAVER,
         "news.naver.com": crawling_news.get_news_info_from_NAVER,
+        "v.daum.net": crawling_news.get_news_info_from_DAUM,
+        "news.nate.com": crawling_news.get_news_info_from_NATE,
+        "m.news.nate.com": crawling_news.get_news_info_from_NATE_MOBILE,
+    }
+
+    __supported_domains_and_date_format = {
+        "n.news.naver.com": "%Y-%m-%d %H:%M:%S",
+        "news.naver.com": "%Y-%m-%d %H:%M:%S",
+        "v.daum.net": "%Y%m%d%H%M%S",
+        "m.news.nate.com": "%Y.%m.%d %H:%M",
+        "news.nate.com": "%Y-%m-%d %H:%M",
     }
 
     @classmethod
@@ -32,6 +43,11 @@ class Platform:
         """
         print("[START]get_crawling_method, domain:", domain)
         return cls._Platform__supported_domains_and_crawling_methods[domain]
+
+    @classmethod
+    def get_date_format(cls, domain: str) -> str:
+        print("[START]get_date_format, domain:", domain)
+        return cls._Platform__supported_domains_and_date_format[domain]
 
 
 # def test():

@@ -54,11 +54,11 @@ def crawl_and_write_newspaper(url: str) -> ai_model.APIMODEL.NewsPaper:
                 platform.Platform.get_crawling_method(domain=domain)(link)
             )
 
-            # title, body, image, source, published_at = get_news_info_from_NAVER(
-            #     link=link
-            # )
             summary = get_summary(body)
-            published_at = convert_str_to_datetime(published_at)
+            published_at = convert_str_to_datetime(
+                date_str=published_at,
+                date_format=platform.Platform.get_date_format(domain=domain),
+            )
 
             # DB 저장
             sql_newspaper = ai_model.SQLMODEL.NewsPaper(
