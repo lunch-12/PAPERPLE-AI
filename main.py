@@ -4,7 +4,7 @@ from zoneinfo import ZoneInfo
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from contextlib import asynccontextmanager
-from crawling import crawling_naver, crawling_yahoo
+from crawling import crawling_naver
 
 KST = ZoneInfo("Asia/Seoul")
 

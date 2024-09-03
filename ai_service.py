@@ -5,7 +5,6 @@ from util.hash_utils import get_sha256_hash
 from util.url_util import get_domain_and_path
 from util.datetime_util import convert_str_to_datetime
 from model import platform
-from crawling.crawling_news import get_news_info_from_NAVER
 from news_summary import get_summary
 
 
