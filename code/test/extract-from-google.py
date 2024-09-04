@@ -1,15 +1,17 @@
+import os
 import re
 import pandas as pd
 from openai import OpenAI
 import json
 import urllib.request
 from kakaotrans import Translator
-from concurrent.futures import ThreadPoolExecutor, as_completed
 import time
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service as ChromeService
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.common.by import By
+
+
 
 # OpenAI 클라이언트 설정
 def setup_openai_client():
@@ -105,6 +107,11 @@ def fetch_foreign_or_crypto_stock_info(stock_code):
 
 # Google에서 검색하여 종목명, 종목 코드, 가격, 등락차 가져오기
 def fetch_stock_info_from_google(stock):
+    # 이전에 검색 실패한 종목이면 패스
+    if stock in failed_stocks:
+        print(f"{stock}는 이전에 검색 실패한 종목입니다. 패스합니다.")
+        return 'N/A', 'N/A', 'N/A', 'N/A'
+
     driver = webdriver.Chrome(service=ChromeService(ChromeDriverManager().install()))
 
     try:
@@ -140,6 +147,8 @@ def fetch_stock_info_from_google(stock):
         return stock_name, stock_code, current_price, last_price_change
     except Exception as e:
         print(f"해당 종목이 검색이 안됨: {e}")
+        # 검색 실패한 종목을 목록에 추가
+        failed_stocks.add(stock)
         return 'N/A', 'N/A', 'N/A', 'N/A'
     finally:
         driver.quit()
@@ -159,6 +168,23 @@ def fetch_and_append_stock_info(stock_code, row, results, is_foreign=False):
         '전일대비 등락가격': last_price_change
     })
 
+# 실패한 종목 저장 파일 경로
+failed_stocks_file = 'data/failed_stocks.json'
+
+# 실패한 종목 로드
+def load_failed_stocks():
+    if os.path.exists(failed_stocks_file):
+        with open(failed_stocks_file, 'r') as f:
+            return set(json.load(f))
+    return set()
+
+# 실패한 종목 저장
+def save_failed_stocks(failed_stocks):
+    with open(failed_stocks_file, 'w') as f:
+        json.dump(list(failed_stocks), f)
+
+# 실패한 종목 관리
+failed_stocks = load_failed_stocks()
 
 def process_stock_info(stock, code_df, results, row):
     if stock != 'N/A':
@@ -183,6 +209,11 @@ def process_stock_info(stock, code_df, results, row):
                 fetch_and_append_stock_info(stock_code, row, results)
                 return
             
+            if stock_code and stock_code.endswith('.KS'):
+                stock_code = stock_code[:-3]  # .KS 제거
+                fetch_and_append_stock_info(stock_code, row, results, is_foreign)
+                return
+                                            
             match = re.search(r'\((.*?)\)', stock)
             if match:
                 stock_name = match.group(1)
@@ -222,12 +253,28 @@ def process_stock_info(stock, code_df, results, row):
             # 9. 외국 종목 또는 가상자산으로 간주하고 외국 종목 정보 가져오기(stock이 영어로 구성되어있을 경우)
             if re.match(r'^[A-Za-z\s]+$', stock):  # stock이 영어로만 구성된 경우
                 is_foreign = True
-                stock_code = stock
-                fetch_and_append_stock_info(stock_code, row, results, is_foreign=True)
+                stock_name, current_price, last_price_change = fetch_foreign_or_crypto_stock_info(stock)
+                
+                # 만약 외국 종목 정보가 'N/A', 'N/A', 'N/A'로 반환된 경우 Google 검색 시도로 넘어감
+                if stock_name == 'N/A' and current_price == 'N/A' and last_price_change == 'N/A':
+                    stock_name, stock_code, current_price, last_price_change = fetch_stock_info_from_google(stock)
+                    if stock_name != 'N/A' and stock_code != 'N/A':
+                        results.append({
+                            '뉴스 제목': row['title'],
+                            '관련 종목명': stock_name,
+                            '종목 코드': stock_code,
+                            '현재 가격': current_price,
+                            '전일대비 등락가격': last_price_change
+                        })
+                    return
+                
+                # 정상적으로 정보가 조회된 경우 결과에 추가
+                fetch_and_append_stock_info(stock, row, results, is_foreign=True)
                 return
 
             # 10. 마지막 시도로 Google에서 종목 정보를 검색하여 가져오기
-            if stock.split(' ')[0] != 'N/A' and stock.split(' ')[0] != 'NA':
+            is_nan = stock.split(' ')[0]
+            if is_nan != 'N/A' and is_nan != 'NA' and len(stock)<20:
                 stock_name, stock_code, current_price, last_price_change = fetch_stock_info_from_google(stock)
                 if stock_name != 'N/A' and stock_code != 'N/A':
                     results.append({
@@ -336,7 +383,7 @@ def main():
     
     # 뉴스 기사 데이터 읽기
     df = read_excel_file('./data/article_df_240812.xlsx')
-    new_df = df.iloc[550:660]
+    new_df = df.iloc[500:600]
 
     # 한국거래소 종목 코드 데이터 읽기
     code_df = read_excel_file('data/국내상장법인.xlsx')
@@ -353,5 +400,12 @@ def main():
     # 결과를 새로운 엑셀 파일로 저장
     save_results_to_excel(results, 'data/구글검색기능_종합_주식정보_test.xlsx')
 
+    # 종료 시 실패한 종목 목록 저장
+    save_failed_stocks(failed_stocks)
+    
 if __name__ == "__main__":
     main()
+    
+    
+# 최후의 셀레니움 동적 조건: 1개당 40분
+# 100개 데이터기준 소요시간: 23분
