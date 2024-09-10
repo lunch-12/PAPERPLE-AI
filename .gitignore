@@ -205,3 +205,6 @@ pip-selfcheck.json
 # Ignore all local history of files
 .history
 .ionide
+
+# Open API key
+.env
