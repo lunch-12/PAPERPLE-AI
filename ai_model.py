@@ -18,6 +18,9 @@ class APIMODEL:
         page_count: int
         newspapers: list["APIMODEL.NewsPaper"]
 
+    class NewsPaperBody(BaseModel):
+        url: str
+
 
 class SQLMODEL:
     class NewsPaper(SQLModel, table=True):

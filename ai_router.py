@@ -13,7 +13,7 @@ ai_router = APIRouter()
 
 
 @ai_router.post(
-    "/newspaper/{NEWS_URL}",
+    "/newspaper/",
     status_code=status.HTTP_201_CREATED,
     responses={
         201: {"description": "Successful Response and Create Newspaper"},
@@ -22,10 +22,11 @@ ai_router = APIRouter()
         419: {"description": "Not Support, This platform does not support the service"},
     },
 )
-def post_newspaper(URL: str) -> ai_model.APIMODEL.NewsPaper:
-    print("[START]post_newspaper, URL:", URL)
+async def post_newspaper(
+    body: ai_model.APIMODEL.NewsPaperBody,
+) -> ai_model.APIMODEL.NewsPaper:
     try:
-        return ai_service.crawl_and_write_newspaper(URL)
+        return ai_service.crawl_and_write_newspaper(body.url)
     except ai_exception.URLNotCrawlableError as e:
         raise HTTPException(status_code=403, detail={"message": e.args[0]})
     except ai_exception.InvalidURLError as e:
