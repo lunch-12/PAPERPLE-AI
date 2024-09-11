@@ -12,6 +12,7 @@ from ai_crud import upsert_newspapers
 from ai_model import SQLMODEL
 from util.hash_utils import get_sha256_hash
 from util.datetime_util import convert_NAVER_date_to_datetime
+import news_summary
 
 # Constants
 HEADERS = {
@@ -141,7 +142,7 @@ async def main():
         SQLMODEL.NewsPaper(
             title=row["title"],
             body=row["main"],
-            summary="TEMP SUMMARY",
+            summary=news_summary.get_summary(row["main"]),
             link=row["link"],
             link_hash=get_sha256_hash(row["link"]),
             image=row["image"],
