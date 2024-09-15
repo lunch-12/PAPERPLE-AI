@@ -3,8 +3,8 @@
 
     environment {
         REPO = 'lunch-12/PAPERPLE-AI'
-        IMAGE_NAME = 'hnnynh/paperple-ai'
-        DOCKER_CREDENTIALS_ID = 'dockerhub'
+        IMAGE_NAME = 'paperple-ai'
+        ECR_ACCESS = 'ECR_Access'
     }
     
     stages {
@@ -21,8 +21,16 @@
 
                     if (images) {
                         sh "docker rmi -f ${images} || true"
+                        try {
+                            sh "docker rmi -f ${images}"
+                        } catch (Exception e) {
+                            sh 'docker stop run-test'
+                            sh 'docker rm run-test'
+                            sh "docker rmi -f ${images}"
+                        }
                         echo "Deleted Docker images: ${images}"
-                    } else {
+                    } 
+                    else {
                         echo "No Docker images found with name: ${IMAGE_NAME}"
                     }
                 }
@@ -37,13 +45,70 @@
             }
         }
         
-        stage('Push to Docker Hub') {
+        stage('Run Test Container') {
             steps {
                 script {
-                    docker.withRegistry('https://index.docker.io/v1/', "${DOCKER_CREDENTIALS_ID}") {
-                        dockerImage.push("v0.0.${env.BUILD_NUMBER}")
+                    sh "docker run -d --name run-test -p 8000:8000 ${IMAGE_NAME}:v0.0.${env.BUILD_NUMBER}"
+                }
+            }
+        }
+       
+        stage('Call Health Check API') {
+            steps {
+                script {
+                    def httpCode
+                    def retry = true
+
+                    while (retry) {
+                        try {
+                            httpCode = sh(script: 'curl -s -o /dev/null -w %{http_code} http://localhost:8000/health', returnStdout: true).trim()
+                            retry = false
+                            env.HTTP_CODE = httpCode
+                        } catch (Exception e) {
+                            echo "Error occurred: ${e.message}. Retrying"
+                        }
+                
+                        sleep(5) 
                     }
                 }
+            }
+        }        
+
+        stage('Test Env Cleanup') {
+            steps {
+                script {
+                    sh 'docker stop run-test'
+                    sh 'docker rm run-test'
+                }
+            }
+        }
+        
+        stage('Health Check') {
+            steps {
+                script {
+                    if(env.HTTP_CODE != '200'){
+                        echo "${env.HTTP_CODE}"
+                        error("Health Check Failure: ${env.HTTP_CODE}")
+                    }
+                }
+            }
+        }       
+        
+        stage('Push to ECR') {
+            steps {
+                script {
+                    docker.withRegistry("https://024848437933.dkr.ecr.ap-northeast-2.amazonaws.com", "ecr:ap-northeast-2:${env.ECR_ACCESS}") {
+                        docker.image("${env.IMAGE_NAME}:v0.0.${env.BUILD_NUMBER}").push()
+                    }
+                }
+            }
+        }
+      
+        stage('Trigger CD Job') {
+            steps {
+                echo "IMAGE_TAG = v0.0.${env.BUILD_NUMBER}"
+                build job: 'paperple-ai-cd', parameters: [string(name: 'IMAGE_TAG', value: "v0.0.${env.BUILD_NUMBER}")], 
+                    wait: false
             }
         }
     }
